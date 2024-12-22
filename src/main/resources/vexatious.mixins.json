@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "vexatious.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EvokerEntity$SummonVexGoalMixin",
+    "VexEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+	}
+}

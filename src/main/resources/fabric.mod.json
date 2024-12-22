@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "vexatious",
+  "version": "${version}",
+  "name": "Vexatious",
+  "description": "A mod that makes vexes dies when their summoner dies.",
+  "authors": [
+    "cputnam-a11y"
+  ],
+  "contact": {
+    "sources": "https://github.com/FabricMC/fabric-example-mod"
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/vexatious/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "vexatious.Vexatious"
+    ]
+  },
+  "mixins": [
+    "vexatious.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": [
+      "1.21.1",
+      "1.21"
+    ],
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
