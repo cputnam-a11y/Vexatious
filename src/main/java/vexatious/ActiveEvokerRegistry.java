@@ -2,24 +2,21 @@ package vexatious;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.EvokerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryOps;
 import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Uuids;
 import net.minecraft.world.PersistentState;
+import vexatious.util.EntityReference;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 @SuppressWarnings("LoggingSimilarMessage")
@@ -29,10 +26,17 @@ public class ActiveEvokerRegistry extends PersistentState {
             ActiveEvokerRegistry::fromNbt,
             null
     );
-    static final Codec<ActiveEvokerRegistry> CODEC = EntityReference.<EvokerEntity>createCodec().listOf().xmap(
-            ActiveEvokerRegistry::new,
-            (r) -> r.activeEvokers
-    );
+    static final Codec<ActiveEvokerRegistry> CODEC =
+            EntityReference.<EvokerEntity>createCodec()
+                    .listOf()
+                    .<List<EntityReference<EvokerEntity>>>xmap(
+                            ArrayList::new,
+                            Function.identity()
+                    )
+                    .xmap(
+                            ActiveEvokerRegistry::new,
+                            (r) -> r.activeEvokers
+                    );
     private List<EntityReference<EvokerEntity>> activeEvokers = new ArrayList<>();
 
     public ActiveEvokerRegistry() {
@@ -58,26 +62,21 @@ public class ActiveEvokerRegistry extends PersistentState {
     }
 
     public void removeEvoker(UUID uuid) {
-        activeEvokers.removeIf(ref -> Objects.equals(ref.uuid, uuid));
+        activeEvokers.removeIf(ref -> Objects.equals(ref.uuid(), uuid));
         markDirty();
     }
+
     public void removeEvoker(EvokerEntity evoker) {
-        activeEvokers.removeIf(ref -> Objects.equals(ref.uuid, evoker.getUuid()));
+        activeEvokers.removeIf(ref -> Objects.equals(ref.uuid(), evoker.getUuid()));
         markDirty();
     }
 
     public boolean containsUUID(UUID uuid) {
-        return activeEvokers.stream().anyMatch(ref -> Objects.equals(ref.uuid, uuid));
+        return activeEvokers.stream().anyMatch(ref -> Objects.equals(ref.uuid(), uuid));
     }
-
-    public void listEvokers(ServerCommandSource source) {
-        for (EntityReference<EvokerEntity> ref : activeEvokers) {
-            MutableText text = Text.translatable("vexatious.evoker_prefix")
-                    .append(Text.of(ref.uuid));
-            source.sendFeedback(() -> text, false);
-        }
+    public void forEachRef(Consumer<EntityReference<EvokerEntity>> consumer) {
+        activeEvokers.forEach(consumer);
     }
-
     ImmutableList<EntityReference<EvokerEntity>> getActiveEvokers() {
         return ImmutableList.copyOf(activeEvokers);
     }
@@ -86,14 +85,20 @@ public class ActiveEvokerRegistry extends PersistentState {
     public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         NbtCompound activeEvokersNbt = new NbtCompound();
         RegistryOps<NbtElement> registryOps = RegistryOps.of(NbtOps.INSTANCE, registryLookup);
-        try {
-            activeEvokersNbt.put("activeEvokers", CODEC.encodeStart(registryOps, this).getOrThrow());
-        } catch (Exception e) {
-            Vexatious.LOGGER.info("Failed to write active evokers to NBT!");
-            Vexatious.LOGGER.info("Skipping...");
-            Vexatious.LOGGER.info("See Debug log for more information.");
-            Vexatious.LOGGER.debug(e.getMessage());
-        }
+        CODEC.encodeStart(registryOps, this)
+                .ifError(
+                        err -> {
+                            Vexatious.LOGGER.info("Failed to encode active evokers to NBT!");
+                            Vexatious.LOGGER.info("Skipping...");
+                            Vexatious.LOGGER.info("See Debug log for more information.");
+                            Vexatious.LOGGER.debug(err.message());
+                        }
+                ).ifSuccess(
+                        element -> activeEvokersNbt.put(
+                                "activeEvokers",
+                                element
+                        )
+                );
         return activeEvokersNbt;
     }
 
@@ -107,41 +112,4 @@ public class ActiveEvokerRegistry extends PersistentState {
         }).orElse(new ActiveEvokerRegistry());
     }
 
-    record EntityReference<T extends Entity>(UUID uuid, EntityType<T> type) {
-        public static <T extends Entity> Codec<EntityReference<T>> createCodec() {
-            return RecordCodecBuilder.create(instance -> instance.group(
-                            Uuids.CODEC.fieldOf("uuid").forGetter(EntityReference::uuid),
-                            Registries.ENTITY_TYPE.getCodec()
-                                    .xmap(
-                                            EntityReference::<T>castEntityType,
-                                            Function.identity()
-                                    )
-                                    .fieldOf("type")
-                                    .forGetter(EntityReference::type)
-                    ).apply(instance, EntityReference::new)
-            );
-        }
-
-        public static <T extends Entity> EntityReference<T> of(T entity) {
-            //noinspection unchecked
-            return new EntityReference<>(entity.getUuid(), (EntityType<T>) entity.getType());
-        }
-
-        Optional<T> getEntity(ServerWorld world) {
-            for (ServerWorld world1 : world.getServer().getWorlds()) {
-                Optional<Entity> maybeEntity = Optional.ofNullable(world1.getEntity(uuid));
-                if (maybeEntity.isPresent() && maybeEntity.get().getType() == type) {
-                    //noinspection unchecked
-                    return (Optional<T>) maybeEntity;
-                }
-            }
-            return Optional.empty();
-        }
-
-        // sure... it's safe... right?
-        @SuppressWarnings("unchecked")
-        private static <T extends Entity> EntityType<T> castEntityType(EntityType<?> type) {
-            return (EntityType<T>) type;
-        }
-    }
 }
