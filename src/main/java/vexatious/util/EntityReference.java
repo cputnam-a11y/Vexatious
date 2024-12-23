@@ -11,7 +11,7 @@ import net.minecraft.util.Uuids;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
-
+@SuppressWarnings("unchecked") // sure... it's safe... right?
 public record EntityReference<T extends Entity>(UUID uuid, EntityType<T> type) {
     public static <T extends Entity> Codec<EntityReference<T>> createCodec() {
         return RecordCodecBuilder.create(instance -> instance.group(
@@ -28,23 +28,19 @@ public record EntityReference<T extends Entity>(UUID uuid, EntityType<T> type) {
     }
 
     public static <T extends Entity> EntityReference<T> of(T entity) {
-        //noinspection unchecked
         return new EntityReference<>(entity.getUuid(), (EntityType<T>) entity.getType());
     }
 
-    Optional<T> getEntity(ServerWorld world) {
+    public Optional<T> getEntity(ServerWorld world) {
         for (ServerWorld world1 : world.getServer().getWorlds()) {
             Optional<Entity> maybeEntity = Optional.ofNullable(world1.getEntity(uuid));
             if (maybeEntity.isPresent() && maybeEntity.get().getType() == type) {
-                //noinspection unchecked
                 return (Optional<T>) maybeEntity;
             }
         }
         return Optional.empty();
     }
 
-    // sure... it's safe... right?
-    @SuppressWarnings("unchecked")
     private static <T extends Entity> EntityType<T> castEntityType(EntityType<?> type) {
         return (EntityType<T>) type;
     }

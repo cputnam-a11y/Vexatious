@@ -12,7 +12,11 @@ base {
 
 repositories {
 }
-
+fabricApi {
+    configureDataGeneration {
+        client = false
+    }
+}
 loom {
     mods {
         "vexatious" {

@@ -16,6 +16,9 @@
   "entrypoints": {
     "main": [
       "vexatious.Vexatious"
+    ],
+    "fabric-datagen": [
+      "vexatious.datagen.VexatiousDataGenerator"
     ]
   },
   "mixins": [
